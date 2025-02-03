@@ -1,0 +1,29 @@
+# Learn more about configuring your app at https://shopify.dev/docs/apps/tools/cli/configuration
+
+client_id = "503dbe31d73d9d77adeb0a596e417eed"
+application_url = "https://driver-reseller-appreciated-relaxation.trycloudflare.com"
+embedded = true
+name = "excel-generate"
+handle = "excel-generate"
+
+[build]
+include_config_on_deploy = true
+dev_store_url = "quickstart-bed62d0e.myshopify.com"
+automatically_update_urls_on_dev = true
+
+[webhooks]
+api_version = "2025-01"
+
+[access_scopes]
+# Learn more at https://shopify.dev/docs/apps/tools/cli/configuration#access_scopes
+scopes = "read_orders,read_products,write_orders"
+
+[auth]
+redirect_urls = [
+  "https://driver-reseller-appreciated-relaxation.trycloudflare.com/auth/callback",
+  "https://driver-reseller-appreciated-relaxation.trycloudflare.com/auth/shopify/callback",
+  "https://driver-reseller-appreciated-relaxation.trycloudflare.com/api/auth/callback"
+]
+
+[pos]
+embedded = false
