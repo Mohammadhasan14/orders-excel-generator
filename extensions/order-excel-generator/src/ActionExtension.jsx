@@ -7,7 +7,7 @@ import {
   Button,
   Text,
 } from '@shopify/ui-extensions-react/admin';
-import * as XLSX from "xlsx";
+import * as XLSX from "xlsx-js-style";
 
 
 async function getOrders(ids) {
@@ -68,7 +68,7 @@ function App() {
 
     orders.forEach(order => {
       order.lineItems.nodes.forEach(item => {
-        const sku = item.sku || "OTHER"; 
+        const sku = item.sku || "OTHER";
         const productId = item.variant.product.id;
         const productTitle = item.variant.product.title;
         const selectedOptionKey = item.variant.selectedOptions[0]?.value || "default";
@@ -98,85 +98,127 @@ function App() {
 
   function downloadExcel(selectedOrders) {
     const groupedOrders = groupOrdersBySKU(selectedOrders);
-    console.log("groupedOrders",groupedOrders);
-    
+    console.log("groupedOrders", groupedOrders);
 
-    // Defining headers
-    const headers = ["MEAL", "QTY"]; // First column: Meal (Product Titles), rest: Quantity types
-    const allQuantityKeys = new Set(); // Tracking unique quantity keys
+    const headers = ["MEAL", "QTY"]; 
+    const allQuantityKeys = new Set(); 
 
-    // Extsracting all possible quantity keys (option typess)
+    // Extractings all possible quantity keys (option types)
     Object.values(groupedOrders).forEach(products => {
       Object.values(products).forEach(product => {
         Object.keys(product.quantity).forEach(key => allQuantityKeys.add(key));
       });
     });
 
-    // Converting Set to Array for headers
     const quantityKeys = Array.from(allQuantityKeys);
-    console.log("quantityKeys", quantityKeys);
-
+    console.log("quantityKeys",quantityKeys);
+    
     headers.push(...quantityKeys);
 
-    // Initializing sheet data with headers
     const sheetData = [];
 
     // Adding a row for the date
-    sheetData.push([new Date(), ...Array(headers.length - 1).fill("")]); // Date row
+    const options = { day: '2-digit', month: 'short', year: 'numeric' };
+    sheetData.push([
+      {
+        v: new Date().toLocaleDateString('en-GB', options).replace(',', ''),
+        s: { font: { bold: true, sz: 14 }, alignment: { horizontal: "center" } }
+      },
+      ...Array(headers.length - 1).fill("")
+    ]);
 
-    // Adding headers row
-    sheetData.push(headers);
+    // Adding headers row with styling
+    sheetData.push(
+      headers.map(header => ({
+        v: header,
+        s: {
+          font: { bold: true, color: { rgb: "FFFFFF" } },
+          fill: { fgColor: { rgb: "4F81BD" } }, 
+          alignment: { horizontal: "center" },
+          border: {
+            top: { style: "thin", color: { rgb: "000000" } },
+            bottom: { style: "thin", color: { rgb: "000000" } },
+            left: { style: "thin", color: { rgb: "000000" } },
+            right: { style: "thin", color: { rgb: "000000" } }
+          }
+        }
+      }))
+    );
 
-    // Populatings SKU and products
+    // Populating SKU and products
     Object.entries(groupedOrders).forEach(([sku, products]) => {
-      // Adding SKU section row (Highlighted Yellow)
-      sheetData.push([{ v: sku, s: { fill: { fgColor: { rgb: "FFFF00" } } } }]);
+      // Adding SKU section row as Highlighted Yellow)
+      sheetData.push([
+        {
+          v: sku,
+          s: {
+            font: { bold: true },
+            fill: { fgColor: { rgb: "FFFF00" } },
+            alignment: { horizontal: "left" },
+            border: {
+              top: { style: "thin", color: { rgb: "000000" } },
+              bottom: { style: "thin", color: { rgb: "000000" } },
+              left: { style: "thin", color: { rgb: "000000" } },
+              right: { style: "thin", color: { rgb: "000000" } }
+            }
+          }
+        },
+        ...Array(headers.length - 1).fill("")
+      ]);
 
       Object.values(products).forEach(product => {
         const row = Array(headers.length).fill(""); // Empty row
 
-        row[0] = product.title; // Product Title in First Column
+        row[0] = {
+          v: product.title,
+          s: {
+            font: { bold: false },
+            alignment: { horizontal: "left" },
+            border: {
+              top: { style: "thin", color: { rgb: "000000" } },
+              bottom: { style: "thin", color: { rgb: "000000" } },
+              left: { style: "thin", color: { rgb: "000000" } },
+              right: { style: "thin", color: { rgb: "000000" } }
+            }
+          }
+        };
 
-        // Filling quantity data
+        // Fillings quantity data
         Object.entries(product.quantity).forEach(([key, value]) => {
-          const index = headers.indexOf(key); // Finding inddex of quantity type
-          if (index !== -1) row[index] = value;
+          const index = headers.indexOf(key); // Find index of quantity type
+          if (index !== -1) {
+            row[index] = {
+              v: value,
+              s: {
+                alignment: { horizontal: "center" },
+                border: {
+                  top: { style: "thin", color: { rgb: "000000" } },
+                  bottom: { style: "thin", color: { rgb: "000000" } },
+                  left: { style: "thin", color: { rgb: "000000" } },
+                  right: { style: "thin", color: { rgb: "000000" } }
+                }
+              }
+            };
+          }
         });
 
         sheetData.push(row);
       });
     });
-
+    // console.log("sheetData",sheetData);
+    
     // Creating a worksheet
     const ws = XLSX.utils.aoa_to_sheet(sheetData);
 
-    // Applying styling (e.g., bold for headers)
-    const headerRange = XLSX.utils.decode_range(ws["!ref"]);
-    for (let C = 0; C < headers.length; C++) {
-      const cell = XLSX.utils.encode_cell({ r: 1, c: C });
-      if (!ws[cell]) continue;
-      ws[cell].s = { font: { bold: true } };
-    }
-
-    // Creating a new workbook
     const wb = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(wb, ws, "Orders");
 
-    // Writing workbook as base64
     const excelBuffer = XLSX.write(wb, { bookType: "xlsx", type: "base64" });
 
-    // Generating downloadable file URI
+    // downloadawble file URI
     const fileUri = `data:application/vnd.openxmlformats-officedocument.spreadsheetml.sheet;base64,${excelBuffer}`;
     console.log("fileUri-+-+>", fileUri);
   }
-
-
-
-
-
-
-
-
 
   useEffect(() => {
     const fetchOrders = async () => {
@@ -194,7 +236,7 @@ function App() {
   return (
 
     <AdminAction
-      title='Generate order excel 70007'
+      title='Generate Order Excel'
       primaryAction={
         <Button
           onPress={() => {

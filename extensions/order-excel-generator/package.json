@@ -8,7 +8,7 @@
     "@shopify/ui-extensions": "2025.1.x",
     "@shopify/ui-extensions-react": "2025.1.x",
     "react-reconciler": "0.29.0",
-    "xlsx": "^0.18.5"
+    "xlsx-js-style": "^1.2.0"
   },
   "devDependencies": {
     "@types/react": "^18.0.0"

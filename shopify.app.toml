@@ -1,7 +1,7 @@
 # Learn more about configuring your app at https://shopify.dev/docs/apps/tools/cli/configuration
 
 client_id = "503dbe31d73d9d77adeb0a596e417eed"
-application_url = "https://redhead-traffic-heather-tones.trycloudflare.com"
+application_url = "https://march-daughters-fee-scottish.trycloudflare.com"
 embedded = true
 name = "excel-generate"
 handle = "excel-generate"
@@ -20,9 +20,9 @@ scopes = "read_orders,read_products,write_orders"
 
 [auth]
 redirect_urls = [
-  "https://redhead-traffic-heather-tones.trycloudflare.com/auth/callback",
-  "https://redhead-traffic-heather-tones.trycloudflare.com/auth/shopify/callback",
-  "https://redhead-traffic-heather-tones.trycloudflare.com/api/auth/callback"
+  "https://march-daughters-fee-scottish.trycloudflare.com/auth/callback",
+  "https://march-daughters-fee-scottish.trycloudflare.com/auth/shopify/callback",
+  "https://march-daughters-fee-scottish.trycloudflare.com/api/auth/callback"
 ]
 
 [pos]
