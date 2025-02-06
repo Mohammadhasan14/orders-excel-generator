@@ -30,6 +30,7 @@ async function getOrders(ids) {
                 currentQuantity
                 variant {
                   product {
+                    id
                     title
                   }
                   selectedOptions {
@@ -60,212 +61,120 @@ function App() {
 
   const { data } = useApi(TARGET);
   const [selectedOrders, setSelectedOrders] = useState()
-
-
   const selectedOrderIds = data.selected;
 
-  // function downloadExcel() {
-  //   const data = [
-  //     ["Name", "Other", "Program", "Option", "Meal", "Container", "Size"], // Headers for the columns
-  //   ];
+  function groupOrdersBySKU(orders) {
+    const result = {};
 
-  //   // Sample data provided
-  //   const selectedOrders = [
-  //     {
-  //       "id": "gid://shopify/Order/5937880858860",
-  //       "lineItems": {
-  //         "nodes": [
-  //           {
-  //             "sku": null,
-  //             "currentQuantity": 1,
-  //             "variant": {
-  //               "product": {
-  //                 "title": "+ Protein Dinner Bundle"
-  //               },
-  //               "selectedOptions": [
-  //                 {
-  //                   "name": "Program",
-  //                   "value": "Glow"
-  //                 },
-  //                 {
-  //                   "name": "Option",
-  //                   "value": "6 meal"
-  //                 }
-  //               ]
-  //             }
-  //           }
-  //         ]
-  //       }
-  //     },
-  //     {
-  //       "id": "gid://shopify/Order/5937767743724",
-  //       "lineItems": {
-  //         "nodes": [
-  //           {
-  //             "sku": "YBAS",
-  //             "currentQuantity": 1,
-  //             "variant": {
-  //               "product": {
-  //                 "title": "Turkey Burrito Bowl"
-  //               },
-  //               "selectedOptions": [
-  //                 {
-  //                   "name": "meal",
-  //                   "value": "reg"
-  //                 }
-  //               ]
-  //             }
-  //           },
-  //           {
-  //             "sku": "FBCP",
-  //             "currentQuantity": 1,
-  //             "variant": {
-  //               "product": {
-  //                 "title": "Blueberry Chia Pudding"
-  //               },
-  //               "selectedOptions": [
-  //                 {
-  //                   "name": "Container",
-  //                   "value": "reg"
-  //                 }
-  //               ]
-  //             }
-  //           },
-  //           {
-  //             "sku": "SAL",
-  //             "currentQuantity": 1,
-  //             "variant": {
-  //               "product": {
-  //                 "title": "Winter Beet Salad"
-  //               },
-  //               "selectedOptions": [
-  //                 {
-  //                   "name": "meal",
-  //                   "value": "chicken"
-  //                 }
-  //               ]
-  //             }
-  //           }
-  //         ]
-  //       }
-  //     }
-  //   ];
+    orders.forEach(order => {
+      order.lineItems.nodes.forEach(item => {
+        const sku = item.sku || "OTHER"; 
+        const productId = item.variant.product.id;
+        const productTitle = item.variant.product.title;
+        const selectedOptionKey = item.variant.selectedOptions[0]?.value || "default";
+        const quantity = item.currentQuantity;
 
-  //   selectedOrders.forEach(order => {
-  //     order.lineItems.nodes.forEach(item => {
-  //       let row = [];
-  //       const sku = item.sku || "Unknown SKU";
-  //       const productTitle = item.variant.product.title;
-  //       const selectedOptions = item.variant.selectedOptions;
+        if (!result[sku]) {
+          result[sku] = {};
+        }
 
-  //       row.push(sku);
-  //       row.push(productTitle);
+        if (!result[sku][productId]) {
+          result[sku][productId] = {
+            title: productTitle,
+            quantity: {}
+          };
+        }
 
-  //       const other = selectedOptions.length === 0 ? "No Selection" : "";
-  //       row.push(other);
+        if (!result[sku][productId].quantity[selectedOptionKey]) {
+          result[sku][productId].quantity[selectedOptionKey] = 0;
+        }
 
-  //       selectedOptions.forEach(option => {
-  //         row.push(option.value);
-  //       });
+        result[sku][productId].quantity[selectedOptionKey] += quantity;
+      });
+    });
 
-  //       data.push(row);
-  //     });
-  //   });
-
-  //   // Create a worksheet from the data array
-  //   const ws = XLSX.utils.aoa_to_sheet(data);
-
-  //   // Create a new workbook
-  //   const wb = XLSX.utils.book_new();
-  //   XLSX.utils.book_append_sheet(wb, ws, "Orders");
-
-  //   // Write the workbook as a binary string
-  //   const excelBuffer = XLSX.write(wb, { bookType: "xlsx", type: "base64" });
-
-  //   // Create a data URI for download
-  //   const fileUri = `data:application/vnd.openxmlformats-officedocument.spreadsheetml.sheet;base64,${excelBuffer}`;
-  //   console.log("fileUri", fileUri);
-
-  //   // Open the file in a new tab (fallback if download isn't allowed)
-  //   window.open(fileUri);
-  // }
+    return result;
+  }
 
   function downloadExcel(selectedOrders) {
-    const categories = {};
-  
-    // Process the data to categorize by SKU and collect dynamic headers
-    const allSelectedOptionKeys = new Set();
-  
-    selectedOrders.forEach((order) => {
-      order.lineItems.nodes.forEach((item) => {
-        const sku = item.sku || "Other"; // Group items without SKU under 'Other'
-        const productName = item.variant.product.title;
-        const selectedOptions = item.variant.selectedOptions.reduce((acc, option) => {
-          acc[option.name] = option.value;
-          allSelectedOptionKeys.add(option.name); // Collect unique option keys for dynamic headers
-          return acc;
-        }, {});
-  
-        if (!categories[sku]) {
-          categories[sku] = [];
-        }
-  
-        categories[sku].push({
-          name: productName,
-          ...selectedOptions,
-          quantity: item.currentQuantity,
-        });
+    const groupedOrders = groupOrdersBySKU(selectedOrders);
+    console.log("groupedOrders",groupedOrders);
+    
+
+    // Defining headers
+    const headers = ["MEAL", "QTY"]; // First column: Meal (Product Titles), rest: Quantity types
+    const allQuantityKeys = new Set(); // Tracking unique quantity keys
+
+    // Extsracting all possible quantity keys (option typess)
+    Object.values(groupedOrders).forEach(products => {
+      Object.values(products).forEach(product => {
+        Object.keys(product.quantity).forEach(key => allQuantityKeys.add(key));
       });
     });
-  
-    // Create dynamic headers
-    const dynamicHeaders = Array.from(allSelectedOptionKeys);
-    const headers = ["Category (SKU)", "Name", ...dynamicHeaders];
-  
-    // Prepare data rows based on dynamic headers
-    const data = [headers];
-  
-    Object.keys(categories).forEach((sku) => {
-      categories[sku].forEach((item) => {
-        const row = [sku, item.name];
-        dynamicHeaders.forEach((key) => {
-          // Assign quantity to the corresponding dynamic header or leave empty
-          row.push(item[key] === undefined ? "" : `${item.quantity}`);
+
+    // Converting Set to Array for headers
+    const quantityKeys = Array.from(allQuantityKeys);
+    console.log("quantityKeys", quantityKeys);
+
+    headers.push(...quantityKeys);
+
+    // Initializing sheet data with headers
+    const sheetData = [];
+
+    // Adding a row for the date
+    sheetData.push([new Date(), ...Array(headers.length - 1).fill("")]); // Date row
+
+    // Adding headers row
+    sheetData.push(headers);
+
+    // Populatings SKU and products
+    Object.entries(groupedOrders).forEach(([sku, products]) => {
+      // Adding SKU section row (Highlighted Yellow)
+      sheetData.push([{ v: sku, s: { fill: { fgColor: { rgb: "FFFF00" } } } }]);
+
+      Object.values(products).forEach(product => {
+        const row = Array(headers.length).fill(""); // Empty row
+
+        row[0] = product.title; // Product Title in First Column
+
+        // Filling quantity data
+        Object.entries(product.quantity).forEach(([key, value]) => {
+          const index = headers.indexOf(key); // Finding inddex of quantity type
+          if (index !== -1) row[index] = value;
         });
-        data.push(row);
+
+        sheetData.push(row);
       });
     });
-  
-    // Create a worksheet
-    const ws = XLSX.utils.aoa_to_sheet(data);
-  
-    // Create a new workbook
+
+    // Creating a worksheet
+    const ws = XLSX.utils.aoa_to_sheet(sheetData);
+
+    // Applying styling (e.g., bold for headers)
+    const headerRange = XLSX.utils.decode_range(ws["!ref"]);
+    for (let C = 0; C < headers.length; C++) {
+      const cell = XLSX.utils.encode_cell({ r: 1, c: C });
+      if (!ws[cell]) continue;
+      ws[cell].s = { font: { bold: true } };
+    }
+
+    // Creating a new workbook
     const wb = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(wb, ws, "Orders");
-  
-    // Write workbook as binary string
-    const excelBuffer = XLSX.write(wb, { bookType: "xlsx", type: "array" });
-  
-    // Create a blob for download
-    const blob = new Blob([excelBuffer], {
-      type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-    });
-  
-    // Create a download link
-    const link = document.createElement("a");
-    link.href = URL.createObjectURL(blob);
-    link.download = "Orders.xlsx";
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
+
+    // Writing workbook as base64
+    const excelBuffer = XLSX.write(wb, { bookType: "xlsx", type: "base64" });
+
+    // Generating downloadable file URI
+    const fileUri = `data:application/vnd.openxmlformats-officedocument.spreadsheetml.sheet;base64,${excelBuffer}`;
+    console.log("fileUri-+-+>", fileUri);
   }
-  
-  // Example usage
-  downloadExcel(selectedOrders);
-  
-  
-  
-  
+
+
+
+
+
+
 
 
 
@@ -285,10 +194,11 @@ function App() {
   return (
 
     <AdminAction
+      title='Generate order excel 70007'
       primaryAction={
         <Button
           onPress={() => {
-            downloadExcel()
+            downloadExcel(selectedOrders)
           }}
         >
           Generate Excel File
