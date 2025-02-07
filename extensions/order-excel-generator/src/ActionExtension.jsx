@@ -24,6 +24,10 @@ async function getOrders(ids) {
         nodes(ids: ${JSON.stringify(orderIDs)}) {
           ... on Order {
             id
+            customAttributes {
+              key
+              value
+            }
             lineItems(first: 250) {
               nodes {
                 sku
@@ -31,7 +35,7 @@ async function getOrders(ids) {
                 variant {
                   product {
                     id
-                    title
+                    title 
                   }
                   selectedOptions {
                     name
@@ -71,7 +75,7 @@ function App() {
         const sku = item.sku || "OTHER";
         const productId = item.variant.product.id;
         const productTitle = item.variant.product.title;
-        const selectedOptionKey = item.variant.selectedOptions[0]?.value || "default";
+        const selectedOptionKey = item.variant.selectedOptions.map(option => option.value).join('/');
         const quantity = item.currentQuantity;
 
         if (!result[sku]) {
@@ -100,24 +104,38 @@ function App() {
     const groupedOrders = groupOrdersBySKU(selectedOrders);
     console.log("groupedOrders", groupedOrders);
 
-    const headers = ["MEAL", "QTY"]; 
-    const allQuantityKeys = new Set(); 
+    const headers = ["MEAL"];
+    const allQuantityKeys = new Set();
 
-    // Extractings all possible quantity keys (option types)
+    // extracting all possiblde quantity keys (option types)
     Object.values(groupedOrders).forEach(products => {
       Object.values(products).forEach(product => {
-        Object.keys(product.quantity).forEach(key => allQuantityKeys.add(key));
+        Object.keys(product.quantity).forEach(key => {
+          // checking if the quantity keys value is "Default Title"
+          if (product.quantity[key] === "Default Title") {
+            // if it is, add "QTY" to the set instead of the original key
+            allQuantityKeys.add("QTY");
+          } else {
+            // else original key
+            allQuantityKeys.add(key);
+          }
+        });
       });
     });
 
+    // converting allQuantityKeys to thes array and inserting "QTY" after "MEAL"
     const quantityKeys = Array.from(allQuantityKeys);
-    console.log("quantityKeys",quantityKeys);
-    
-    headers.push(...quantityKeys);
+    console.log("quantityKeys", quantityKeys);
+
+    // eemoving "Default Title" from the keys and only pushindg "QTY" in the headers
+    headers.push("QTY");
+    headers.push(...quantityKeys.filter(key => key !== "Default Title" && key !== "QTY"));
+
+    console.log("Updated headers:", headers);
 
     const sheetData = [];
 
-    // Adding a row for the date
+    // adding a row for the date
     const options = { day: '2-digit', month: 'short', year: 'numeric' };
     sheetData.push([
       {
@@ -127,13 +145,13 @@ function App() {
       ...Array(headers.length - 1).fill("")
     ]);
 
-    // Adding headers row with styling
+    // adding headers row with styling
     sheetData.push(
       headers.map(header => ({
         v: header,
         s: {
           font: { bold: true, color: { rgb: "FFFFFF" } },
-          fill: { fgColor: { rgb: "4F81BD" } }, 
+          fill: { fgColor: { rgb: "4F81BD" } },
           alignment: { horizontal: "center" },
           border: {
             top: { style: "thin", color: { rgb: "000000" } },
@@ -145,9 +163,9 @@ function App() {
       }))
     );
 
-    // Populating SKU and products
+    // populating SKU and productss
     Object.entries(groupedOrders).forEach(([sku, products]) => {
-      // Adding SKU section row as Highlighted Yellow)
+      // adding SKU section row as Highlighted Yellow)
       sheetData.push([
         {
           v: sku,
@@ -167,7 +185,7 @@ function App() {
       ]);
 
       Object.values(products).forEach(product => {
-        const row = Array(headers.length).fill(""); // Empty row
+        const row = Array(headers.length).fill(""); // empty row
 
         row[0] = {
           v: product.title,
@@ -183,9 +201,13 @@ function App() {
           }
         };
 
-        // Fillings quantity data
+        // fillings quantity data in the selected options key
         Object.entries(product.quantity).forEach(([key, value]) => {
-          const index = headers.indexOf(key); // Find index of quantity type
+          // if "Default Title" then we will use "QTY" 
+          const adjustedKey = (key === "Default Title") ? "QTY" : key;
+          const index = headers.indexOf(adjustedKey);
+          console.log("index", index, "key", key, "value", value, "adjustedKey", adjustedKey);
+
           if (index !== -1) {
             row[index] = {
               v: value,
@@ -205,9 +227,8 @@ function App() {
         sheetData.push(row);
       });
     });
-    // console.log("sheetData",sheetData);
-    
-    // Creating a worksheet
+
+    // creating a worksheet
     const ws = XLSX.utils.aoa_to_sheet(sheetData);
 
     const wb = XLSX.utils.book_new();
@@ -234,9 +255,8 @@ function App() {
   }, [selectedOrderIds]);
 
   return (
-
     <AdminAction
-      title='Generate Order Excel'
+      title='Generate Orders Excel'
       primaryAction={
         <Button
           onPress={() => {
