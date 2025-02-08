@@ -10,11 +10,36 @@ import {
 import * as XLSX from "xlsx-js-style";
 
 
+const skuNames = {
+  WBAS: "WHITE BASMATI RICE",
+  YBAS: "YELLO BASMATI RICE",
+  BBAS: "BROWN BASMATI RICE",
+  VERM: "VERMICELLI NOODLE",
+  PAS: "PASTA",
+  SAL: "SALAD",
+  RPAT: "Roasted Sweet Potato",
+  WPAT: "White Patatoes",
+  BRK: "Breakfast",
+  SOU: "Soup",
+  BUR: "Burgers",
+  MISC: "miscellaneous",
+  WRP: "Wraps",
+  SAU: "Sauce",
+  SNK: "Snack",
+  COK: "Cookies",
+  GIFT25: "Gift Card $25",
+  GIFT50: "Gift Card $50",
+  GIFT100: "Gift Card $100",
+  GIFT200: "Gift Card $200",
+  DRS: "Dressing",
+  JUC: "Juices"
+}
+
 async function getOrders(ids) {
-  console.log("ids", ids);
+  // console.log("ids", ids);
 
   const orderIDs = ids.map((d) => d?.id)
-  console.log("orderIDs", orderIDs);
+  // console.log("orderIDs", orderIDs);
 
   const res = await fetch('shopify:admin/api/graphql.json', {
     method: 'POST',
@@ -36,6 +61,7 @@ async function getOrders(ids) {
                   product {
                     id
                     title 
+                    tags
                   }
                   selectedOptions {
                     name
@@ -53,7 +79,16 @@ async function getOrders(ids) {
   const data = await res.json();
   console.log("dataa", data)
   console.log("data.data.nodes", data.data.nodes);
-  return data.data.nodes
+  const filteredData = data?.data?.nodes.map(data => {
+    const validLineItems = data.lineItems.nodes.filter(d => {
+      return !(d.variant && d?.variant?.product?.tags.includes('bundleProduct'));
+    });
+
+    return validLineItems?.length > 0 ? { ...data, lineItems: { nodes: validLineItems } } : null;
+  }).filter(d => d !== null);
+
+  console.log("filteredData", filteredData);
+  return filteredData
 }
 
 
@@ -72,28 +107,31 @@ function App() {
 
     orders.forEach(order => {
       order.lineItems.nodes.forEach(item => {
-        const sku = item.sku || "OTHER";
-        const productId = item.variant.product.id;
-        const productTitle = item.variant.product.title;
-        const selectedOptionKey = item.variant.selectedOptions.map(option => option.value).join('/');
-        const quantity = item.currentQuantity;
+        // console.log("item===========>", item);
+        if (item?.variant) {
+          const sku = item.sku || "OTHER";
+          const productId = item.variant.product.id;
+          const productTitle = item.variant.product.title;
+          const selectedOptionKey = item.variant.selectedOptions.map(option => option.value).join('/');
+          const quantity = item.currentQuantity;
 
-        if (!result[sku]) {
-          result[sku] = {};
+          if (!result[sku]) {
+            result[sku] = {};
+          }
+
+          if (!result[sku][productId]) {
+            result[sku][productId] = {
+              title: productTitle,
+              quantity: {}
+            };
+          }
+
+          if (!result[sku][productId].quantity[selectedOptionKey]) {
+            result[sku][productId].quantity[selectedOptionKey] = 0;
+          }
+
+          result[sku][productId].quantity[selectedOptionKey] += quantity;
         }
-
-        if (!result[sku][productId]) {
-          result[sku][productId] = {
-            title: productTitle,
-            quantity: {}
-          };
-        }
-
-        if (!result[sku][productId].quantity[selectedOptionKey]) {
-          result[sku][productId].quantity[selectedOptionKey] = 0;
-        }
-
-        result[sku][productId].quantity[selectedOptionKey] += quantity;
       });
     });
 
@@ -107,7 +145,7 @@ function App() {
     const headers = ["MEAL"];
     const allQuantityKeys = new Set();
 
-    // extracting all possiblde quantity keys (option types)
+    // extracting all possidble quantity keys (option types)
     Object.values(groupedOrders).forEach(products => {
       Object.values(products).forEach(product => {
         Object.keys(product.quantity).forEach(key => {
@@ -123,15 +161,16 @@ function App() {
       });
     });
 
-    // converting allQuantityKeys to thes array and inserting "QTY" after "MEAL"
+    // converting allQuantityKeys to the array and inserting "QTY" after "MEAL"
     const quantityKeys = Array.from(allQuantityKeys);
-    console.log("quantityKeys", quantityKeys);
+    // console.log("quantityKeys", quantityKeys);
 
-    // eemoving "Default Title" from the keys and only pushindg "QTY" in the headers
+    // removing "Default Title" from the keys and only pushing "QTY" in the headers
     headers.push("QTY");
     headers.push(...quantityKeys.filter(key => key !== "Default Title" && key !== "QTY"));
+    headers.push("Total QTY");
 
-    console.log("Updated headers:", headers);
+    // console.log("Updated headers:", headers);
 
     const sheetData = [];
 
@@ -163,12 +202,15 @@ function App() {
       }))
     );
 
-    // populating SKU and productss
+    // populating SKU and products
     Object.entries(groupedOrders).forEach(([sku, products]) => {
+      const skuName = skuNames[sku] || sku;
+      // console.log("skuName", skuName, "sku", sku);
+
       // adding SKU section row as Highlighted Yellow)
       sheetData.push([
         {
-          v: sku,
+          v: skuName,
           s: {
             font: { bold: true },
             fill: { fgColor: { rgb: "FFFF00" } },
@@ -186,6 +228,7 @@ function App() {
 
       Object.values(products).forEach(product => {
         const row = Array(headers.length).fill(""); // empty row
+        let totalQuantity = 0; // variable to store the total quantity for this row
 
         row[0] = {
           v: product.title,
@@ -205,7 +248,7 @@ function App() {
         Object.entries(product.quantity).forEach(([key, value]) => {
           // if "Default Title" then we will use "QTY" 
           const adjustedKey = (key === "Default Title") ? "QTY" : key;
-          const index = headers.indexOf(adjustedKey);
+          const index = headers.indexOf(skuNames[adjustedKey] ? skuNames[adjustedKey] : adjustedKey);
           console.log("index", index, "key", key, "value", value, "adjustedKey", adjustedKey);
 
           if (index !== -1) {
@@ -221,8 +264,28 @@ function App() {
                 }
               }
             };
+
+            // add the value to the total quantity (assuming value is a number)
+            totalQuantity += Number(value);
           }
         });
+
+        // Addings the total quantity to the last column "Total QTY"
+        const totalQTYIndex = headers.indexOf("Total QTY");
+        if (totalQTYIndex !== -1) {
+          row[totalQTYIndex] = {
+            v: totalQuantity,
+            s: {
+              alignment: { horizontal: "center" },
+              border: {
+                top: { style: "thin", color: { rgb: "000000" } },
+                bottom: { style: "thin", color: { rgb: "000000" } },
+                left: { style: "thin", color: { rgb: "000000" } },
+                right: { style: "thin", color: { rgb: "000000" } }
+              }
+            }
+          };
+        }
 
         sheetData.push(row);
       });

@@ -1,7 +1,7 @@
 # Learn more about configuring your app at https://shopify.dev/docs/apps/tools/cli/configuration
 
 client_id = "503dbe31d73d9d77adeb0a596e417eed"
-application_url = "https://lowest-algorithms-phentermine-flags.trycloudflare.com"
+application_url = "https://viii-dispatched-mp-weather.trycloudflare.com"
 embedded = true
 name = "excel-generate"
 handle = "excel-generate"
@@ -20,9 +20,9 @@ scopes = "read_orders,read_products,write_orders"
 
 [auth]
 redirect_urls = [
-  "https://lowest-algorithms-phentermine-flags.trycloudflare.com/auth/callback",
-  "https://lowest-algorithms-phentermine-flags.trycloudflare.com/auth/shopify/callback",
-  "https://lowest-algorithms-phentermine-flags.trycloudflare.com/api/auth/callback"
+  "https://viii-dispatched-mp-weather.trycloudflare.com/auth/callback",
+  "https://viii-dispatched-mp-weather.trycloudflare.com/auth/shopify/callback",
+  "https://viii-dispatched-mp-weather.trycloudflare.com/api/auth/callback"
 ]
 
 [pos]
