@@ -6,8 +6,10 @@ import {
   BlockStack,
   Button,
   Text,
+  ChoiceList,
 } from '@shopify/ui-extensions-react/admin';
 import * as XLSX from "xlsx-js-style";
+// import { Link } from '@shopify/ui-extensions/admin';
 
 
 const skuNames = {
@@ -37,10 +39,8 @@ const skuNames = {
 
 async function getOrders(ids) {
   // console.log("ids", ids);
-
   const orderIDs = ids.map((d) => d?.id)
   // console.log("orderIDs", orderIDs);
-
   const res = await fetch('shopify:admin/api/graphql.json', {
     method: 'POST',
     body: JSON.stringify({
@@ -49,6 +49,23 @@ async function getOrders(ids) {
         nodes(ids: ${JSON.stringify(orderIDs)}) {
           ... on Order {
             id
+            note
+            shippingAddress {
+              address1
+              address2
+              city
+              country
+              countryCodeV2
+              firstName
+              lastName
+              formattedArea
+              name
+              phone
+              province
+              provinceCode
+              zip
+              countryCode
+            }
             customAttributes {
               key
               value
@@ -83,75 +100,70 @@ async function getOrders(ids) {
     const validLineItems = data.lineItems.nodes.filter(d => {
       return !(d.variant && d?.variant?.product?.tags.includes('bundleProduct'));
     });
-
     return validLineItems?.length > 0 ? { ...data, lineItems: { nodes: validLineItems } } : null;
   }).filter(d => d !== null);
-
   console.log("filteredData", filteredData);
   return filteredData
 }
-
 
 const TARGET = 'admin.order-index.selection-action.render';
 
 export default reactExtension(TARGET, () => <App />);
 
 function App() {
-
   const { data } = useApi(TARGET);
-  const [selectedOrders, setSelectedOrders] = useState()
   const selectedOrderIds = data.selected;
+  const [selectedOrders, setSelectedOrders] = useState()
+  const [isLoadingButton, setLoadingButton] = useState(false)
+  // const [downloadLink, setDownloadLink] = useState("")
+  const [selectedOption, setSelectedOption] = useState("orders")
 
   function groupOrdersBySKU(orders) {
     const result = {};
-
+    console.log("before forEach orders=========>", orders);
     orders.forEach(order => {
+      console.log("before forEach  order.lineItems.nodes====>", order?.lineItems?.nodes);
       order.lineItems.nodes.forEach(item => {
-        // console.log("item===========>", item);
+        console.log("inside forEach item===========>", item);
         if (item?.variant) {
           const sku = item.sku || "OTHER";
           const productId = item.variant.product.id;
           const productTitle = item.variant.product.title;
           const selectedOptionKey = item.variant.selectedOptions.map(option => option.value).join('/');
           const quantity = item.currentQuantity;
-
           if (!result[sku]) {
             result[sku] = {};
           }
-
           if (!result[sku][productId]) {
             result[sku][productId] = {
               title: productTitle,
               quantity: {}
             };
           }
-
           if (!result[sku][productId].quantity[selectedOptionKey]) {
             result[sku][productId].quantity[selectedOptionKey] = 0;
           }
-
           result[sku][productId].quantity[selectedOptionKey] += quantity;
         }
       });
     });
-
     return result;
   }
 
-  function downloadExcel(selectedOrders) {
+  const handleOrdersFileGenerate = () => {
     const groupedOrders = groupOrdersBySKU(selectedOrders);
-    console.log("groupedOrders", groupedOrders);
-
+    console.log("before forEach groupedOrders", groupedOrders);
     const headers = ["MEAL"];
     const allQuantityKeys = new Set();
-
     // extracting all possidble quantity keys (option types)
     Object.values(groupedOrders).forEach(products => {
+      console.log("before forEach products", products);
       Object.values(products).forEach(product => {
+        console.log("before forEach product?.quantity", product?.quantity);
         Object.keys(product.quantity).forEach(key => {
           // checking if the quantity keys value is "Default Title"
           if (product.quantity[key] === "Default Title") {
-            // if it is, add "QTY" to the set instead of the original key
+            // if it is adding "QTY" to the set instead of the original key
             allQuantityKeys.add("QTY");
           } else {
             // else original key
@@ -160,20 +172,15 @@ function App() {
         });
       });
     });
-
     // converting allQuantityKeys to the array and inserting "QTY" after "MEAL"
     const quantityKeys = Array.from(allQuantityKeys);
     // console.log("quantityKeys", quantityKeys);
-
     // removing "Default Title" from the keys and only pushing "QTY" in the headers
     headers.push("QTY");
     headers.push(...quantityKeys.filter(key => key !== "Default Title" && key !== "QTY"));
     headers.push("Total QTY");
-
     // console.log("Updated headers:", headers);
-
     const sheetData = [];
-
     // adding a row for the date
     const options = { day: '2-digit', month: 'short', year: 'numeric' };
     sheetData.push([
@@ -183,7 +190,6 @@ function App() {
       },
       ...Array(headers.length - 1).fill("")
     ]);
-
     // adding headers row with styling
     sheetData.push(
       headers.map(header => ({
@@ -201,12 +207,10 @@ function App() {
         }
       }))
     );
-
     // populating SKU and products
     Object.entries(groupedOrders).forEach(([sku, products]) => {
       const skuName = skuNames[sku] || sku;
       // console.log("skuName", skuName, "sku", sku);
-
       // adding SKU section row as Highlighted Yellow)
       sheetData.push([
         {
@@ -225,11 +229,10 @@ function App() {
         },
         ...Array(headers.length - 1).fill("")
       ]);
-
+      console.log("before forEach products", products);
       Object.values(products).forEach(product => {
         const row = Array(headers.length).fill(""); // empty row
         let totalQuantity = 0; // variable to store the total quantity for this row
-
         row[0] = {
           v: product.title,
           s: {
@@ -243,14 +246,13 @@ function App() {
             }
           }
         };
-
         // fillings quantity data in the selected options key
+        console.log("before forEach product.quantity", product.quantity);
         Object.entries(product.quantity).forEach(([key, value]) => {
           // if "Default Title" then we will use "QTY" 
           const adjustedKey = (key === "Default Title") ? "QTY" : key;
           const index = headers.indexOf(skuNames[adjustedKey] ? skuNames[adjustedKey] : adjustedKey);
           console.log("index", index, "key", key, "value", value, "adjustedKey", adjustedKey);
-
           if (index !== -1) {
             row[index] = {
               v: value,
@@ -264,12 +266,10 @@ function App() {
                 }
               }
             };
-
             // add the value to the total quantity (assuming value is a number)
             totalQuantity += Number(value);
           }
         });
-
         // Addings the total quantity to the last column "Total QTY"
         const totalQTYIndex = headers.indexOf("Total QTY");
         if (totalQTYIndex !== -1) {
@@ -286,22 +286,80 @@ function App() {
             }
           };
         }
-
         sheetData.push(row);
       });
     });
-
     // creating a worksheet
     const ws = XLSX.utils.aoa_to_sheet(sheetData);
-
     const wb = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(wb, ws, "Orders");
-
     const excelBuffer = XLSX.write(wb, { bookType: "xlsx", type: "base64" });
-
     // downloadawble file URI
     const fileUri = `data:application/vnd.openxmlformats-officedocument.spreadsheetml.sheet;base64,${excelBuffer}`;
-    console.log("fileUri-+-+>", fileUri);
+    // setDownloadLink(fileUri)
+    return fileUri
+  }
+
+  const handleShippingFileGenerate = () => {
+    const headers = [
+      "Order ID", "Customer Name", "Phone", "Country", "City",
+      "Province", "Address Line 1", "Address Line 2", "ZIP Code", "Note"
+    ];
+    const sheetData = [headers];
+    selectedOrders.forEach((order) => {
+      const orderID = order.id.split("/").pop();
+      const shipping = order.shippingAddress;
+      sheetData.push([
+        orderID,
+        shipping.name || "N/A",
+        shipping.phone || "N/A",
+        shipping.country || "N/A",
+        shipping.city || "N/A",
+        shipping.province || "N/A",
+        shipping.address1 || "N/A",
+        shipping.address2 || "N/A",
+        shipping.zip || "N/A",
+        order.note || "N/A"
+      ]);
+    });
+    // convertng array of arrays to worksheet
+    const ws = XLSX.utils.aoa_to_sheet(sheetData);
+    // definings a professional header style
+    const headerStyle = {
+      font: { bold: true, color: { rgb: "FFFFFF" } },
+      fill: { patternType: "solid", fgColor: { rgb: "4F81BD" } },
+      alignment: { horizontal: "center", vertical: "center" },
+      border: {
+        top: { style: "thin", color: { rgb: "000000" } },
+        right: { style: "thin", color: { rgb: "000000" } },
+        bottom: { style: "thin", color: { rgb: "000000" } },
+        left: { style: "thin", color: { rgb: "000000" } }
+      }
+    };
+    // Applying the header style to each cell in the first row (headers)
+    for (let col = 0; col < headers.length; col++) {
+      const cellAddress = XLSX.utils.encode_cell({ r: 0, c: col });
+      if (ws[cellAddress]) {
+        ws[cellAddress].s = headerStyle;
+      }
+    }
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, "Orders");
+    const excelBuffer = XLSX.write(wb, { bookType: "xlsx", type: "base64" });
+    const fileUri = `data:application/vnd.openxmlformats-officedocument.spreadsheetml.sheet;base64,${excelBuffer}`;
+    return fileUri;
+  };
+
+  function generateExcel() {
+    setLoadingButton(true)
+    if (selectedOption === "orders") {
+      const ordersFileURI = handleOrdersFileGenerate()
+      console.log("download URL ===============>  ", ordersFileURI);
+    } else {
+      const shippingFileURI = handleShippingFileGenerate()
+      console.log("download URL ===============>  ", shippingFileURI);
+    }
+    setLoadingButton(false)
   }
 
   useEffect(() => {
@@ -313,18 +371,32 @@ function App() {
         console.error('Error fetching orders:', error);
       }
     };
-
     fetchOrders();
   }, [selectedOrderIds]);
 
   return (
     <AdminAction
       title='Generate Orders Excel'
+      children={<>
+        <ChoiceList
+          name="Please select a file type"
+          choices={[
+            { label: 'Orders excel file', id: 'orders' },
+            { label: 'Shipping excel file', id: 'shipping' },
+          ]}
+          onChange={(v) => setSelectedOption(v)}
+          value={selectedOption}
+        />
+        {/* {downloadLink ? <Link href={downloadLink}>
+          Click here to download
+        </Link> : null} */}
+      </>}
       primaryAction={
         <Button
-          onPress={() => {
-            downloadExcel(selectedOrders)
-          }}
+          // download
+          disabled={isLoadingButton}
+          // href={downloadLink}
+          onPress={generateExcel}
         >
           Generate Excel File
         </Button>
