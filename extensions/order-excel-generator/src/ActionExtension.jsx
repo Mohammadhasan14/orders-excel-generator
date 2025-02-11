@@ -94,15 +94,15 @@ async function getOrders(ids) {
     }),
   });
   const data = await res.json();
-  console.log("dataa", data)
-  console.log("data.data.nodes", data.data.nodes);
+  // console.log("dataa", data)
+  // console.log("data.data.nodes", data.data.nodes);
   const filteredData = data?.data?.nodes.map(data => {
     const validLineItems = data.lineItems.nodes.filter(d => {
       return !(d.variant && d?.variant?.product?.tags.includes('bundleProduct'));
     });
     return validLineItems?.length > 0 ? { ...data, lineItems: { nodes: validLineItems } } : null;
   }).filter(d => d !== null);
-  console.log("filteredData", filteredData);
+  // console.log("filteredData", filteredData);
   return filteredData
 }
 
@@ -114,17 +114,17 @@ function App() {
   const { data } = useApi(TARGET);
   const selectedOrderIds = data.selected;
   const [selectedOrders, setSelectedOrders] = useState()
-  const [isLoadingButton, setLoadingButton] = useState(false)
+  const [isLoadingButton, setLoadingButton] = useState(true)
   // const [downloadLink, setDownloadLink] = useState("")
   const [selectedOption, setSelectedOption] = useState("orders")
 
   function groupOrdersBySKU(orders) {
     const result = {};
-    console.log("before forEach orders=========>", orders);
+    // console.log("before forEach orders=========>", orders);
     orders.forEach(order => {
-      console.log("before forEach  order.lineItems.nodes====>", order?.lineItems?.nodes);
+      // console.log("before forEach  order.lineItems.nodes====>", order?.lineItems?.nodes);
       order.lineItems.nodes.forEach(item => {
-        console.log("inside forEach item===========>", item);
+        // console.log("inside forEach item===========>", item);
         if (item?.variant) {
           const sku = item.sku || "OTHER";
           const productId = item.variant.product.id;
@@ -152,14 +152,14 @@ function App() {
 
   const handleOrdersFileGenerate = () => {
     const groupedOrders = groupOrdersBySKU(selectedOrders);
-    console.log("before forEach groupedOrders", groupedOrders);
+    // console.log("before forEach groupedOrders", groupedOrders);
     const headers = ["MEAL"];
     const allQuantityKeys = new Set();
     // extracting all possidble quantity keys (option types)
     Object.values(groupedOrders).forEach(products => {
-      console.log("before forEach products", products);
+      // console.log("before forEach products", products);
       Object.values(products).forEach(product => {
-        console.log("before forEach product?.quantity", product?.quantity);
+        // console.log("before forEach product?.quantity", product?.quantity);
         Object.keys(product.quantity).forEach(key => {
           // checking if the quantity keys value is "Default Title"
           if (product.quantity[key] === "Default Title") {
@@ -229,7 +229,7 @@ function App() {
         },
         ...Array(headers.length - 1).fill("")
       ]);
-      console.log("before forEach products", products);
+      // console.log("before forEach products", products);
       Object.values(products).forEach(product => {
         const row = Array(headers.length).fill(""); // empty row
         let totalQuantity = 0; // variable to store the total quantity for this row
@@ -247,12 +247,12 @@ function App() {
           }
         };
         // fillings quantity data in the selected options key
-        console.log("before forEach product.quantity", product.quantity);
+        // console.log("before forEach product.quantity", product.quantity);
         Object.entries(product.quantity).forEach(([key, value]) => {
           // if "Default Title" then we will use "QTY" 
           const adjustedKey = (key === "Default Title") ? "QTY" : key;
           const index = headers.indexOf(skuNames[adjustedKey] ? skuNames[adjustedKey] : adjustedKey);
-          console.log("index", index, "key", key, "value", value, "adjustedKey", adjustedKey);
+          // console.log("index", index, "key", key, "value", value, "adjustedKey", adjustedKey);
           if (index !== -1) {
             row[index] = {
               v: value,
@@ -291,18 +291,20 @@ function App() {
     });
     // creating a worksheet
     const ws = XLSX.utils.aoa_to_sheet(sheetData);
+    ws['!cols'] = [
+      { wch: 30 }
+    ];
     const wb = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(wb, ws, "Orders");
     const excelBuffer = XLSX.write(wb, { bookType: "xlsx", type: "base64" });
     // downloadawble file URI
     const fileUri = `data:application/vnd.openxmlformats-officedocument.spreadsheetml.sheet;base64,${excelBuffer}`;
-    // setDownloadLink(fileUri)
     return fileUri
   }
 
   const handleShippingFileGenerate = () => {
     const headers = [
-      "Order ID", "Customer Name", "Phone", "Country", "City",
+      "Order ID", "First Name", "Last Name", "Phone", "Country", "City",
       "Province", "Address Line 1", "Address Line 2", "ZIP Code", "Note"
     ];
     const sheetData = [headers];
@@ -311,7 +313,8 @@ function App() {
       const shipping = order.shippingAddress;
       sheetData.push([
         orderID,
-        shipping.name || "N/A",
+        shipping.firstName || "N/A",
+        shipping.lastName || "N/A",
         shipping.phone || "N/A",
         shipping.country || "N/A",
         shipping.city || "N/A",
@@ -322,9 +325,26 @@ function App() {
         order.note || "N/A"
       ]);
     });
-    // convertng array of arrays to worksheet
+
+    // converting array of arrays to worksheet
     const ws = XLSX.utils.aoa_to_sheet(sheetData);
-    // definings a professional header style
+
+    // settinga column widths (using character count)
+    ws['!cols'] = [
+      { wch: 15 }, // for Order ID
+      { wch: 15 }, // for First Name
+      { wch: 15 }, // for Last Name
+      { wch: 15 }, // for  Phone
+      { wch: 15 }, // fora Country
+      { wch: 15 }, // for City
+      { wch: 15 }, // for Province
+      { wch: 20 }, // for Address Line 1
+      { wch: 20 }, // for Address Line 2
+      { wch: 10 }, // for ZIP Code
+      { wch: 25 }  // for Note
+    ];
+
+    // defining a professional header style
     const headerStyle = {
       font: { bold: true, color: { rgb: "FFFFFF" } },
       fill: { patternType: "solid", fgColor: { rgb: "4F81BD" } },
@@ -336,28 +356,36 @@ function App() {
         left: { style: "thin", color: { rgb: "000000" } }
       }
     };
-    // Applying the header style to each cell in the first row (headers)
+
+    // applying the header style to each cell in the first row (headers)
     for (let col = 0; col < headers.length; col++) {
       const cellAddress = XLSX.utils.encode_cell({ r: 0, c: col });
       if (ws[cellAddress]) {
         ws[cellAddress].s = headerStyle;
       }
     }
+
+    // creating a new workbook and append the worksheet
     const wb = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(wb, ws, "Orders");
+
+    // Write the workbook and generate a base64 buffer
     const excelBuffer = XLSX.write(wb, { bookType: "xlsx", type: "base64" });
     const fileUri = `data:application/vnd.openxmlformats-officedocument.spreadsheetml.sheet;base64,${excelBuffer}`;
     return fileUri;
   };
 
   function generateExcel() {
+    console.log("Process started....")
     setLoadingButton(true)
     if (selectedOption === "orders") {
       const ordersFileURI = handleOrdersFileGenerate()
       console.log("download URL ===============>  ", ordersFileURI);
+      // setDownloadLink(ordersFileURI)
     } else {
       const shippingFileURI = handleShippingFileGenerate()
       console.log("download URL ===============>  ", shippingFileURI);
+      // setDownloadLink(shippingFileURI)
     }
     setLoadingButton(false)
   }
@@ -369,10 +397,26 @@ function App() {
         setSelectedOrders(data)
       } catch (error) {
         console.error('Error fetching orders:', error);
+      } finally {
+        setLoadingButton(false)
       }
     };
     fetchOrders();
   }, [selectedOrderIds]);
+
+  // const copyTextToClipboard = async () => {
+  //   if (!navigator?.clipboard) {
+  //     console.log("navigator not found..........s");
+  //     return;
+  //   }
+  //   try {
+  //     console.log("downloadLink",downloadLink);
+
+  //     await navigator.clipboard.writeText(downloadLink);
+  //   } catch (error) {
+  //     console.error('Error copying text: ', error);
+  //   }
+  // };
 
   return (
     <AdminAction
@@ -398,7 +442,7 @@ function App() {
           // href={downloadLink}
           onPress={generateExcel}
         >
-          Generate Excel File
+          {isLoadingButton ? "Please wait..." : "Generate Excel File"}
         </Button>
       }
     >
