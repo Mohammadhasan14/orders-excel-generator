@@ -49,6 +49,7 @@ async function getOrders(ids) {
         nodes(ids: ${JSON.stringify(orderIDs)}) {
           ... on Order {
             id
+            name
             note
             shippingAddress {
               address1
@@ -152,21 +153,17 @@ function App() {
 
   const handleOrdersFileGenerate = () => {
     const groupedOrders = groupOrdersBySKU(selectedOrders);
-    // console.log("before forEach groupedOrders", groupedOrders);
     const headers = ["MEAL"];
     const allQuantityKeys = new Set();
-    // extracting all possidble quantity keys (option types)
+  
+    // extracting all possible quantity keys (option types)
     Object.values(groupedOrders).forEach(products => {
-      // console.log("before forEach products", products);
       Object.values(products).forEach(product => {
-        // console.log("before forEach product?.quantity", product?.quantity);
         Object.keys(product.quantity).forEach(key => {
-          // checking if the quantity keys value is "Default Title"
+          // if the quantity keys value is "Default Title", adding "QTY" instead
           if (product.quantity[key] === "Default Title") {
-            // if it is adding "QTY" to the set instead of the original key
             allQuantityKeys.add("QTY");
           } else {
-            // else original key
             allQuantityKeys.add(key);
           }
         });
@@ -174,13 +171,12 @@ function App() {
     });
     // converting allQuantityKeys to the array and inserting "QTY" after "MEAL"
     const quantityKeys = Array.from(allQuantityKeys);
-    // console.log("quantityKeys", quantityKeys);
-    // removing "Default Title" from the keys and only pushing "QTY" in the headers
     headers.push("QTY");
     headers.push(...quantityKeys.filter(key => key !== "Default Title" && key !== "QTY"));
     headers.push("Total QTY");
-    // console.log("Updated headers:", headers);
+  
     const sheetData = [];
+  
     // adding a row for the date
     const options = { day: '2-digit', month: 'short', year: 'numeric' };
     sheetData.push([
@@ -190,6 +186,7 @@ function App() {
       },
       ...Array(headers.length - 1).fill("")
     ]);
+  
     // adding headers row with styling
     sheetData.push(
       headers.map(header => ({
@@ -207,10 +204,24 @@ function App() {
         }
       }))
     );
-    // populating SKU and products
+  
+    // separating orders into non-meal and meal entries based on skuName.
+    // these are the meal sku names  to push on last.
+    const mealSkuNames = ["Breakfast", "Juices", "SALAD"];
+    const nonMealEntries = [];
+    const mealEntries = [];
+  
     Object.entries(groupedOrders).forEach(([sku, products]) => {
       const skuName = skuNames[sku] || sku;
-      // console.log("skuName", skuName, "sku", sku);
+      if (mealSkuNames.includes(skuName)) {
+        mealEntries.push({ sku, products, skuName });
+      } else {
+        nonMealEntries.push({ sku, products, skuName });
+      }
+    });
+  
+    // to process a grouped order entry and push its rows into sheetData
+    const processEntry = ({ sku, products, skuName }) => {
       // adding SKU section row as Highlighted Yellow)
       sheetData.push([
         {
@@ -229,10 +240,13 @@ function App() {
         },
         ...Array(headers.length - 1).fill("")
       ]);
-      // console.log("before forEach products", products);
+  
+      // processing each product under this SKU
       Object.values(products).forEach(product => {
-        const row = Array(headers.length).fill(""); // empty row
-        let totalQuantity = 0; // variable to store the total quantity for this row
+        const row = Array(headers.length).fill(""); // starting with an empty row
+        let totalQuantity = 0;
+  
+        // fiilling the product title in the first column
         row[0] = {
           v: product.title,
           s: {
@@ -246,13 +260,13 @@ function App() {
             }
           }
         };
-        // fillings quantity data in the selected options key
-        // console.log("before forEach product.quantity", product.quantity);
+  
+        // filling quantity data for each key
         Object.entries(product.quantity).forEach(([key, value]) => {
           // if "Default Title" then we will use "QTY" 
           const adjustedKey = (key === "Default Title") ? "QTY" : key;
+          // if a mapping exists in skuNames using that else adjustedKey directly
           const index = headers.indexOf(skuNames[adjustedKey] ? skuNames[adjustedKey] : adjustedKey);
-          // console.log("index", index, "key", key, "value", value, "adjustedKey", adjustedKey);
           if (index !== -1) {
             row[index] = {
               v: value,
@@ -266,11 +280,10 @@ function App() {
                 }
               }
             };
-            // add the value to the total quantity (assuming value is a number)
             totalQuantity += Number(value);
           }
         });
-        // Addings the total quantity to the last column "Total QTY"
+        // addings the total quantity to the last column "Total QTY"
         const totalQTYIndex = headers.indexOf("Total QTY");
         if (totalQTYIndex !== -1) {
           row[totalQTYIndex] = {
@@ -288,28 +301,33 @@ function App() {
         }
         sheetData.push(row);
       });
-    });
-    // creating a worksheet
+    };
+    // processing a non-meal entries first
+    nonMealEntries.forEach(entry => processEntry(entry));
+    // processing a meal entries last so they appear at the bottom of the meal column
+    mealEntries.forEach(entry => processEntry(entry));
+  
+    // creating a worksheet and setting column widths
     const ws = XLSX.utils.aoa_to_sheet(sheetData);
     ws['!cols'] = [
       { wch: 30 }
     ];
+    // creating workbook, append the sheet, and generating the file URI
     const wb = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(wb, ws, "Orders");
     const excelBuffer = XLSX.write(wb, { bookType: "xlsx", type: "base64" });
-    // downloadawble file URI
     const fileUri = `data:application/vnd.openxmlformats-officedocument.spreadsheetml.sheet;base64,${excelBuffer}`;
-    return fileUri
-  }
+    return fileUri;
+  };
 
   const handleShippingFileGenerate = () => {
     const headers = [
-      "Order ID", "First Name", "Last Name", "Phone", "Country", "City",
+      "Order No.", "First Name", "Last Name", "Phone", "Country", "City",
       "Province", "Address Line 1", "Address Line 2", "ZIP Code", "Note"
     ];
     const sheetData = [headers];
     selectedOrders.forEach((order) => {
-      const orderID = order.id.split("/").pop();
+      const orderID = order.name;
       const shipping = order.shippingAddress;
       sheetData.push([
         orderID,
