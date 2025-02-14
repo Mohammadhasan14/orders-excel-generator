@@ -155,7 +155,7 @@ function App() {
     const groupedOrders = groupOrdersBySKU(selectedOrders);
     const headers = ["MEAL"];
     const allQuantityKeys = new Set();
-  
+
     // extracting all possible quantity keys (option types)
     Object.values(groupedOrders).forEach(products => {
       Object.values(products).forEach(product => {
@@ -174,9 +174,9 @@ function App() {
     headers.push("QTY");
     headers.push(...quantityKeys.filter(key => key !== "Default Title" && key !== "QTY"));
     headers.push("Total QTY");
-  
+
     const sheetData = [];
-  
+
     // adding a row for the date
     const options = { day: '2-digit', month: 'short', year: 'numeric' };
     sheetData.push([
@@ -186,7 +186,7 @@ function App() {
       },
       ...Array(headers.length - 1).fill("")
     ]);
-  
+
     // adding headers row with styling
     sheetData.push(
       headers.map(header => ({
@@ -204,13 +204,13 @@ function App() {
         }
       }))
     );
-  
+
     // separating orders into non-meal and meal entries based on skuName.
     // these are the meal sku names  to push on last.
-    const mealSkuNames = ["Breakfast", "Juices", "SALAD"];
+    const mealSkuNames = ["SALAD", "Breakfast", "Juices"];
     const nonMealEntries = [];
     const mealEntries = [];
-  
+
     Object.entries(groupedOrders).forEach(([sku, products]) => {
       const skuName = skuNames[sku] || sku;
       if (mealSkuNames.includes(skuName)) {
@@ -219,7 +219,14 @@ function App() {
         nonMealEntries.push({ sku, products, skuName });
       }
     });
-  
+
+    // sorting meal entries order variable order
+    mealEntries.sort((a, b) => {
+      const order = ["SALAD", "Breakfast", "Juices"];
+      return order.indexOf(a.skuName) - order.indexOf(b.skuName);
+    });
+
+
     // to process a grouped order entry and push its rows into sheetData
     const processEntry = ({ sku, products, skuName }) => {
       // adding SKU section row as Highlighted Yellow)
@@ -240,12 +247,12 @@ function App() {
         },
         ...Array(headers.length - 1).fill("")
       ]);
-  
+
       // processing each product under this SKU
       Object.values(products).forEach(product => {
         const row = Array(headers.length).fill(""); // starting with an empty row
         let totalQuantity = 0;
-  
+
         // fiilling the product title in the first column
         row[0] = {
           v: product.title,
@@ -260,7 +267,7 @@ function App() {
             }
           }
         };
-  
+
         // filling quantity data for each key
         Object.entries(product.quantity).forEach(([key, value]) => {
           // if "Default Title" then we will use "QTY" 
@@ -306,7 +313,7 @@ function App() {
     nonMealEntries.forEach(entry => processEntry(entry));
     // processing a meal entries last so they appear at the bottom of the meal column
     mealEntries.forEach(entry => processEntry(entry));
-  
+
     // creating a worksheet and setting column widths
     const ws = XLSX.utils.aoa_to_sheet(sheetData);
     ws['!cols'] = [
@@ -394,15 +401,15 @@ function App() {
   };
 
   function generateExcel() {
-    console.log("Process started....")
+    console.log("PROCESS STARTED PLEASE WAIT....")
     setLoadingButton(true)
     if (selectedOption === "orders") {
       const ordersFileURI = handleOrdersFileGenerate()
-      console.log("download URL ===============>  ", ordersFileURI);
+      console.log("ORDERS EXCEL DOWNLOAD URL --------------->  ", ordersFileURI);
       // setDownloadLink(ordersFileURI)
     } else {
       const shippingFileURI = handleShippingFileGenerate()
-      console.log("download URL ===============>  ", shippingFileURI);
+      console.log("SHIPPING EXCEL DOWNLOAD URL -------------->  ", shippingFileURI);
       // setDownloadLink(shippingFileURI)
     }
     setLoadingButton(false)
