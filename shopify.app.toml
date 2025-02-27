@@ -1,7 +1,7 @@
 # Learn more about configuring your app at https://shopify.dev/docs/apps/tools/cli/configuration
 
 client_id = "503dbe31d73d9d77adeb0a596e417eed"
-application_url = "https://displayed-gdp-tracked-africa.trycloudflare.com"
+application_url = "https://vegetarian-weekends-graduate-toe.trycloudflare.com"
 embedded = true
 name = "excel-generate"
 handle = "excel-generate"
@@ -20,9 +20,9 @@ scopes = "read_orders,read_products,write_orders"
 
 [auth]
 redirect_urls = [
-  "https://displayed-gdp-tracked-africa.trycloudflare.com/auth/callback",
-  "https://displayed-gdp-tracked-africa.trycloudflare.com/auth/shopify/callback",
-  "https://displayed-gdp-tracked-africa.trycloudflare.com/api/auth/callback"
+  "https://vegetarian-weekends-graduate-toe.trycloudflare.com/auth/callback",
+  "https://vegetarian-weekends-graduate-toe.trycloudflare.com/auth/shopify/callback",
+  "https://vegetarian-weekends-graduate-toe.trycloudflare.com/api/auth/callback"
 ]
 
 [pos]

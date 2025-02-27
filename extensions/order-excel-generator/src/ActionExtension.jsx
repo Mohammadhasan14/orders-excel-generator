@@ -99,7 +99,7 @@ async function getOrders(ids) {
   // console.log("data.data.nodes", data.data.nodes);
   const filteredData = data?.data?.nodes.map(data => {
     const validLineItems = data.lineItems.nodes.filter(d => {
-      return !(d.variant && d?.variant?.product?.tags.includes('bundleProduct'));
+      return !((d.variant && d?.variant?.product?.tags.includes('bundleProduct')) || d.currentQuantity == 0);
     });
     return validLineItems?.length > 0 ? { ...data, lineItems: { nodes: validLineItems } } : null;
   }).filter(d => d !== null);
