@@ -74,6 +74,10 @@ async function getOrders(ids) {
             lineItems(first: 250) {
               nodes {
                 sku
+                customAttributes {
+                  key
+                  value
+                }
                 currentQuantity
                 variant {
                   product {
@@ -96,14 +100,20 @@ async function getOrders(ids) {
   });
   const data = await res.json();
   // console.log("dataa", data)
-  // console.log("data.data.nodes", data.data.nodes);
+  console.log("data.data.nodes", data.data.nodes);
   const filteredData = data?.data?.nodes.map(data => {
     const validLineItems = data.lineItems.nodes.filter(d => {
       return !((d.variant && d?.variant?.product?.tags.includes('bundleProduct')) || d.currentQuantity == 0);
     });
     return validLineItems?.length > 0 ? { ...data, lineItems: { nodes: validLineItems } } : null;
   }).filter(d => d !== null);
-  // console.log("filteredData", filteredData);
+  // const filteredData2 = data?.data?.nodes.map(data => {
+  //   const validLineItems = data.lineItems.nodes.filter(d => {
+  //     return d.currentQuantity != 0;
+  //   });
+  //   return validLineItems?.length > 0 ? { ...data, lineItems: { nodes: validLineItems } } : null;
+  // }).filter(d => d !== null);
+  // console.log("filteredData2---------->", filteredData2);
   return filteredData
 }
 
@@ -153,6 +163,7 @@ function App() {
 
   const handleOrdersFileGenerate = () => {
     const groupedOrders = groupOrdersBySKU(selectedOrders);
+    console.log("groupedOrders", groupedOrders)
     const headers = ["MEAL"];
     const allQuantityKeys = new Set();
 
